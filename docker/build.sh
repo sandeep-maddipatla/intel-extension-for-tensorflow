@@ -17,29 +17,30 @@
 
 set -e
 IMAGE_TYPE=$1
+DRIVER_VERSION=${2:-}
+
 if [ $IMAGE_TYPE == "xpu" -o $IMAGE_TYPE == "gpu" ]
 then
-        IMAGE_NAME=intel-extension-for-tensorflow:$IMAGE_TYPE
-        docker build --no-cache --build-arg UBUNTU_VERSION=22.04 \
-                                --build-arg ICD_VER=23.43.27642.38-803~22.04 \
-                                --build-arg LEVEL_ZERO_GPU_VER=1.3.27642.38-803~22.04 \
-                                --build-arg LEVEL_ZERO_VER=1.14.0-744~22.04 \
-                                --build-arg LEVEL_ZERO_DEV_VER=1.14.0-744~22.04 \
-                                --build-arg DPCPP_VER=2024.0.0-49819 \
-                                --build-arg MKL_VER=2024.0.0-49656 \
-                                --build-arg CCL_VER=2021.11.0-49156 \
-                                --build-arg PYTHON=python3.10 \
-                                --build-arg TF_VER=2.14 \
-                                --build-arg WHEELS=*.whl \
-                                -t $IMAGE_NAME \
-				-f itex-xpu.Dockerfile .
+    [ ! -z ${DRIVER_VERSION} ] && IMAGE_TYPE=${IMAGE_TYPE}-${DRIVER_VERSION//\/}
+    IMAGE_NAME=intel-extension-for-tensorflow:$IMAGE_TYPE
+    echo Building Image $IMAGE_NAME
+    docker build --build-arg UBUNTU_VERSION=22.04 \
+           --build-arg DPCPP_VER=2024.0.0-49819 \
+           --build-arg MKL_VER=2024.0.0-49656 \
+           --build-arg CCL_VER=2021.11.0-49156 \
+           --build-arg PYTHON=python3.11 \
+           --build-arg TF_VER=2.14 \
+           --build-arg WHEELS=*.whl \
+           --build-arg IGFX_VERSION=${DRIVER_VERSION} \
+           -t $IMAGE_NAME \
+	   -f docker/itex-xpu.Dockerfile .
 else
         IMAGE_NAME=intel-extension-for-tensorflow:$IMAGE_TYPE
-        docker build --no-cache --build-arg UBUNTU_VERSION=22.04 \
-                                --build-arg PYTHON=python3.10 \
-                                --build-arg TF_VER=2.14 \
-                                --build-arg WHEELS=*.whl \
-                                -t $IMAGE_NAME \
-                                -f itex-cpu.Dockerfile .
+        docker build --build-arg UBUNTU_VERSION=22.04 \
+                     --build-arg PYTHON=python3.11 \
+                     --build-arg TF_VER=2.14 \
+                     --build-arg WHEELS=*.whl \
+                     -t $IMAGE_NAME \
+                     -f docker/itex-cpu.Dockerfile .
 fi
 

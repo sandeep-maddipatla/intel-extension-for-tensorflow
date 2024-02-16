@@ -35,26 +35,45 @@ RUN apt-get update && \
     rsync \
     sudo \
     unzip \
+    libnss3-tools \
     wget && \
     apt-get clean && \
     rm -rf  /var/lib/apt/lists/*
 
-RUN wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | \
+# Install certs for internal version of components
+COPY assets/embargo/setup-certs.sh /tmp/
+RUN /tmp/setup-certs.sh && rm -rf /tmp/setup-certs.sh
+
+RUN wget -qO - https://repositories.gfxs.intel.com/repositories/intel-graphics.key | \
     gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
-RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy unified" | \
+
+# Variables to define Intel-Internal Gfx components to use
+ARG IGFX_REPO_URL=https://repositories.gfxs.intel.com/repositories/ubuntu
+ARG IGFX_VERSION=
+ARG IGFX_COMPONENT=unified
+
+RUN local_key=/usr/share/keyrings/intel-graphics.gpg && \
+    igfx_path=jammy && \
+    if [ ! -z $IGFX_VERSION ]; then igfx_path=$igfx_path/$IGFX_VERSION; fi && \
+    source_string=$(echo $IGFX_REPO_URL $igfx_path $IGFX_COMPONENT) && \
+    echo "deb [arch=amd64 signed-by=$(echo $local_key)]  $source_string" | \
     tee /etc/apt/sources.list.d/intel-gpu-jammy.list
 
-ARG ICD_VER
-ARG LEVEL_ZERO_GPU_VER
-ARG LEVEL_ZERO_VER
-ARG LEVEL_ZERO_DEV_VER
-
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends --fix-missing \
-    intel-opencl-icd=${ICD_VER} \
-    intel-level-zero-gpu=${LEVEL_ZERO_GPU_VER} \
-    level-zero=${LEVEL_ZERO_VER} \
-    level-zero-dev=${LEVEL_ZERO_DEV_VER} && \
+    apt-get install -y --no-install-recommends \
+    intel-opencl-icd \
+    intel-level-zero-gpu \
+    level-zero \
+    level-zero-dev
+
+RUN sudo rm -f /opt/DriverPackages.log && \
+    echo "IGFX_REPO_URL=$IGFX_REPO_URL" >> /opt/DriverPackages.log && \
+    echo "IGFX_VERSION=$IGFX_VERSION" >> /opt/DriverPackages.log && \
+    echo "IGFX_COMPONENT=$IGFX_COMPONENT" >> /opt/DriverPackages.log && \
+    apt list -a intel-opencl-icd | tee -a /opt/DriverPackages.log && \
+    apt list -a intel-level-zero-gpu | tee -a /opt/DriverPackages.log && \
+    apt list -a level-zero | tee -a /opt/DriverPackages.log && \
+    apt list -a level-zero-dev | tee -a /opt/DriverPackages.log  && \
     apt-get clean && \
     rm -rf  /var/lib/apt/lists/*
 
